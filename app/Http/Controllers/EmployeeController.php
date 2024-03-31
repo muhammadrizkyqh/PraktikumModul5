@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class EmployeeController extends Controller
 {
@@ -13,7 +14,15 @@ class EmployeeController extends Controller
     public function index()
     {
         $pageTitle = 'Employees List';
-        return view('employees.index', ['pageTitle' => $pageTitle]);
+        // Mengubah raw SQL query menjadi Query Builder
+        $employees = DB::table('employees')
+            ->leftJoin('positions', 'employees.position_id', '=', 'positions.id')
+            ->select('employees.*', 'positions.name as position_name')
+            ->get();
+        return view('employees.index', [
+            'pageTitle' => $pageTitle,
+            'employees' => $employees
+        ]);
     }
 
     /**
@@ -21,8 +30,10 @@ class EmployeeController extends Controller
      */
     public function create()
     {
-        $pageTitle = 'Add Employee';
-        return view('employees.create', ['pageTitle' => $pageTitle]);
+        $pageTitle = 'Create Employee';
+        // Mengubah raw SQL query menjadi Query Builder
+        $positions = DB::table('positions')->get();
+        return view('employees.create', compact('pageTitle', 'positions'));
     }
 
     /**
@@ -44,7 +55,15 @@ class EmployeeController extends Controller
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
-        return $request->all();
+        // INSERT QUERY
+        DB::table('employees')->insert([
+            'firstname' => $request->firstName,
+            'lastname' => $request->lastName,
+            'email' => $request->email,
+            'age' => $request->age,
+            'position_id' => $request->position,
+        ]);
+        return redirect()->route('employees.index');
     }
 
     /**
@@ -52,7 +71,14 @@ class EmployeeController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $pageTitle = 'Employee Detail';
+        // Mengubah raw SQL query menjadi Query Builder
+        $employee = DB::table('employees')
+            ->leftJoin('positions', 'employees.position_id', '=', 'positions.id')
+            ->select('employees.*', 'positions.name as position_name')
+            ->where('employees.id', $id)
+            ->first();
+        return view('employees.show', compact('pageTitle', 'employee'));
     }
 
     /**
@@ -60,7 +86,10 @@ class EmployeeController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        $pageTitle = 'Edit Employee';
+        $employee = DB::table('employees')->where('id', $id)->first();
+        $positions = DB::table('positions')->get();
+        return view('employees.edit', compact('pageTitle', 'employee', 'positions'));
     }
 
     /**
@@ -68,7 +97,29 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $messages = [
+            'required' => ':Attribute harus diisi.',
+            'email' => 'Isi :attribute dengan format yang benar',
+            'numeric' => 'Isi :attribute dengan angka'
+        ];
+        $validator = Validator::make($request->all(), [
+            'firstName' => 'required',
+            'lastName' => 'required',
+            'email' => 'required|email',
+            'age' => 'required|numeric',
+        ], $messages);
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+        // UPDATE QUERY
+        DB::table('employees')->where('id', $id)->update([
+            'firstname' => $request->firstName,
+            'lastname' => $request->lastName,
+            'email' => $request->email,
+            'age' => $request->age,
+            'position_id' => $request->position,
+        ]);
+        return redirect()->route('employees.index')->with('success', 'Data berhasil diupdate');
     }
 
     /**
@@ -76,6 +127,8 @@ class EmployeeController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        //Query DELETE
+        DB::table('employees')->where('id', $id)->delete();
+        return redirect()->route('employees.index');
     }
 }
